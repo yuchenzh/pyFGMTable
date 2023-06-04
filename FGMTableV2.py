@@ -9,6 +9,7 @@ from readOFFiles import readOFScalarList
 from readOFFiles import writeOFScalarList
 from scipy.interpolate import interp1d
 from scipy.interpolate import griddata
+from tableProperties import FGMtableProperties
 
 class FGMtable:
     def __init__(self, dict):
@@ -356,6 +357,7 @@ class FGMtable:
 
 
     def writeTables(self,route = "./tableFromOF/"):
+        # write lookupFields
         for field in self.lookupFields:
             # prepare for the name of the field
             writename = ""
@@ -384,6 +386,25 @@ class FGMtable:
             fieldDict["data"] = orgData
 
             writeOFScalarList(fieldDict,route)
+        
+        # write Z and scaledPV Lists
+        ## write Z
+        fieldDict = {}
+        orgData = self.ZList
+        fieldDict["tablename"] = "Z_table"
+        fieldDict["dimension"] = np.size(orgData)
+        fieldDict["data"] = orgData
+        
+        writeOFScalarList(fieldDict, route)
+
+        ## write scaledPV
+        fieldDict = {}
+        orgData = self.CList
+        fieldDict["tablename"] = "scaledPV_table"
+        fieldDict["dimension"] = np.size(orgData)
+        fieldDict["data"] = orgData
+
+        writeOFScalarList(fieldDict, route)
     
     def Allrun(self,readRoute = "./", writeRoute = "./tableV2/"):
         self.info()
@@ -396,6 +417,10 @@ class FGMtable:
         self.getPVMinMaxAndScaledPV()
         self.generateFGMFields()
         self.writeTables(writeRoute)
+
+        # create property properties
+        properties = FGMtableProperties(writeRoute, self.ZList, self.CList, self.lookupFields)
+        properties()
         return self  
 
 
