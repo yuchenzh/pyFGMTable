@@ -43,7 +43,15 @@ class FGMtableProperties:
         plt.savefig(self.tableRoute + fieldname + ".png", dpi = 150)
         plt.clf()
         plt.close()
+    
+    def fieldInfomation(self,fieldname):
+        Z = self.Zgrid
+        C = self.Cgrid
+        ZZ, CC = np.meshgrid(Z, C)
 
+        field = readOFScalarList(fieldname + "_table", self.tableRoute)
+        field = np.array(field["data"]).reshape(len(Z), len(C)).transpose()
+        return ZZ, CC, field
 
 
 

@@ -64,7 +64,6 @@ class lookup:
             CVFieldDict[name] = field
         return CVFieldDict
             
-    
     def loadLookupVariableFields(self):
         LUFieldDict = {}
         for name in self.lookupVariableNames:
@@ -84,9 +83,17 @@ class lookup:
         PVindexPair, PVcoeffPair = findBetween(scaledPV, self.controlVariableFields["scaledPV"])
         
         result = \
-            ZcoeffPair[0]*PVcoeffPair[0]*self.lookupVariableFields["T"][PVindexPair[0]][ZindexPair[0]] + \
-            ZcoeffPair[0]*PVcoeffPair[1]*self.lookupVariableFields["T"][PVindexPair[0]][ZindexPair[1]] + \
-            ZcoeffPair[1]*PVcoeffPair[0]*self.lookupVariableFields["T"][PVindexPair[1]][ZindexPair[0]] + \
-            ZcoeffPair[1]*PVcoeffPair[1]*self.lookupVariableFields["T"][PVindexPair[1]][ZindexPair[1]]
-                    
-        return result
+            ZcoeffPair[0]*PVcoeffPair[0]*self.lookupVariableFields[fieldname][PVindexPair[0]][ZindexPair[0]] + \
+            ZcoeffPair[0]*PVcoeffPair[1]*self.lookupVariableFields[fieldname][PVindexPair[0]][ZindexPair[1]] + \
+            ZcoeffPair[1]*PVcoeffPair[0]*self.lookupVariableFields[fieldname][PVindexPair[1]][ZindexPair[0]] + \
+            ZcoeffPair[1]*PVcoeffPair[1]*self.lookupVariableFields[fieldname][PVindexPair[1]][ZindexPair[1]]
+        return result,scaledPV
+
+    def lookupList(self, ZList, CList, fieldname):
+        resultList = np.zeros_like(ZList)
+        scaledPVList = np.zeros_like(ZList)
+        for i in range(len(ZList)):
+            Zele = ZList[i]
+            Cele = CList[i]
+            resultList[i], scaledPVList[i] = self.__call__(Zele, Cele, fieldname)
+        return resultList, scaledPVList
