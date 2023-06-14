@@ -27,6 +27,7 @@ class FGMtable:
         self.CCenterList = self.constructCCenterList()
         self.PVFields = self.constructPVFields()
         self.PVCoeffs = self.constructPVCoeffs()
+        self.PVConstant = dict["PVConstant"]
         self.extraLookupFields = self.constructExtraLookupFields()
         self.readFields = self.constructReadFields()
         self.lookupFields = self.constructLookupFields()
@@ -36,6 +37,8 @@ class FGMtable:
         self.pdFieldData = None
         self.FGMFields = None
         self.tableFieldDict = None
+        self.PV0 = None
+        self.Z0 = None
 
     def constructFuelList(self):
         return self.dict["fuelList"]
@@ -100,6 +103,7 @@ class FGMtable:
         for i in range(len(self.PVFields)):
             PVExpressionList.append(str(self.PVCoeffs[i]) + "x" + self.PVFields[i])
         PVExpression = "+".join(PVExpressionList)
+        PVExpression +=  "+ " + str(self.PVConstant)
         print(PVExpression)
         print("Lookup Fields: {}".format(self.lookupFields))
         
@@ -134,7 +138,11 @@ class FGMtable:
         index = np.argmin(np.abs(value-dataList))
         return index
             
-
+    def getPV0(self):
+        PV0 = np.array(self.pdFieldData[0:self.dataSizePerFile]["PV"])
+        Z0  = np.array(self.pdFieldData[0:self.dataSizePerFile]["Z"])
+        self.PV0 = PV0
+        self.Z0  = Z0
 
     def readRawData(self):
         route = self.route
@@ -267,9 +275,20 @@ class FGMtable:
 
     def addPV(self):
         print("\nAdding PV")
+
+        ## calculate PV
         PV = np.zeros(len(self.pdFieldData))
         for i in range(len(self.PVFields)):
             PV += self.pdFieldData[self.PVFields[i]] * self.PVCoeffs[i]
+        PV += self.PVConstant
+        self.pdFieldData["PV"] = PV
+
+        ## repair PV
+        self.getPV0()
+        fPV0 = interp1d(self.Z0, self.PV0, kind = 'linear', bounds_error = False, fill_value = (self.PV0[0], self.PV0[-1]))
+        for i in range(len(self.pdFieldData)):
+            localPV0 = fPV0(self.pdFieldData["Z"][i])
+            PV[i] = PV[i] - localPV0
         self.pdFieldData["PV"] = PV
 
     def addSourcePV(self):
