@@ -31,7 +31,8 @@ def readOFScalarList(tablename, baseRoute = "./Table_ZChp_301_501_1_1/"):
                 
         # perform size check
         if (np.size(data) == dimension):
-            print("Passing dimension check for field {} with size of the data = {}".format(filename,np.size(data)))    
+            pass
+            #print("Passing dimension check for field {} with size of the data = {}".format(filename,np.size(data)))    
     fieldDict = {}
     fieldDict["dimension"] = dimension
     fieldDict["data"]      = data
@@ -70,6 +71,13 @@ def readOFField(fieldname, baseRoute):
             if (not startFlag):
                 if ("internalField" in line):
                     startFlag = True
+                    if (("uniform" in line) and ("nonuniform" not in line)):
+                        info = line.replace("internalField","")
+                        info = info.replace("uniform","")
+                        info = info.replace(";","")
+                        data = float(info)
+                        dimension = np.nan
+                        break
             else: # startFlag on
                 if (not dimensionFlag):
                     if isnum(line):

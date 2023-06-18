@@ -10,6 +10,7 @@ from readOFFiles import writeOFScalarList
 from scipy.interpolate import interp1d
 from scipy.interpolate import griddata
 from tableProperties import FGMtableProperties
+import pickle
 
 class FGMtable:
     def __init__(self, dict):
@@ -220,6 +221,7 @@ class FGMtable:
             interpPDArray = self.constructDFForOneTimeStep(pdArray)
             allInterpPDArray = pd.concat([allInterpPDArray, interpPDArray], axis = 0)
         self.pdInterpFieldData = allInterpPDArray
+        self.pdInterpFieldData.reset_index(drop = True,inplace = True)
         print("\n")
         return allInterpPDArray
     
@@ -237,17 +239,22 @@ class FGMtable:
             nextTimeStart = timeIndexPlus*len(self.ZList)
             nextTimeStop   = timeIndexPlusPlus*len(self.ZList)
 
-            thisTimeData = returndata[curTimeStart:curTimeStop]
+            thisTimeData = returndata[curTimeStart:curTimeStop].copy()
             nextTimeData = returndata[nextTimeStart:nextTimeStop].copy()
+            thisTimeData = thisTimeData.reset_index(drop = True)
+            nextTimeData = nextTimeData.reset_index(drop = True)
+            #nextTimeData.reset_index(drop = True, inplace = True)
+            
 
             if (len(thisTimeData) != len(nextTimeData)):
                 raise Exception("The data sizes of two timesteps are not equal")
             else:
                 # check whether PV is monotonically increasing
                 for index in range(len(thisTimeData)):
-                    if (thisTimeData.loc[index, "PV"] > nextTimeData.loc[index,"PV"]):
+                    if (thisTimeData.loc[index,"PV"] > nextTimeData.loc[index,"PV"]):
                         nextTimeData.loc[index] = thisTimeData.loc[index]
                 returndata[nextTimeStart:nextTimeStop] = nextTimeData
+        returndata.reset_index(drop = True, inplace = True)
         self.pdMonoInterpFieldData = returndata
         print("\n")
         return returndata
@@ -267,6 +274,18 @@ class FGMtable:
         self.pdMonoInterpFieldData["scaledPV"] = np.reshape(scaledPV, (-1,))
         print("\n")
 
+    def getScaledPVForPostProcessing(self):
+        print("\nGet PVmin, PVmax, and scaledPV for post-processing")
+        data = self.pdInterpFieldData
+        PV = data["PV"]
+        PV = np.reshape(list(PV), (-1, len(self.ZList)))
+        self.PVMax = np.max(PV, axis = 0)
+        self.PVMin = np.min(PV, axis = 0)
+
+        
+        scaledPV = (PV - self.PVMin)/(self.PVMax - self.PVMin + 1e-12)
+        self.pdInterpFieldData["scaledPV"] = np.reshape(scaledPV, (-1,))
+        
         
     
 
@@ -283,6 +302,20 @@ class FGMtable:
         else:
             raise Exception("The data should be loaded and converteed to pandas array before adding ZGrid")
 
+    def addZIndexForPostProcessing(self):
+        print("\nAdding ZIndex for post-processing")
+        if (not self.pdInterpFieldData.empty):
+            self.pdInterpFieldData["ZIndex"] = 0
+            
+            totalLine = len(self.pdInterpFieldData)
+            for line in range(len(self.pdInterpFieldData)):
+
+                
+                #print("\tProcessing data entry {}/{}".format(line, totalLine), end = "\r")
+                self.pdInterpFieldData.loc[line,"ZIndex"] = self.findIndex(self.ZCenterList, self.pdInterpFieldData.iloc[line]["Z"])
+            print("\n")
+        else:
+            raise Exception("The data should be loaded and converteed to pandas array before adding ZGrid")
 
     def addCIndex(self):
         print("\nAdding CIndex")
@@ -296,6 +329,17 @@ class FGMtable:
             raise Exception("The data should be loaded and converteed to pandas array before adding ZGrid")
         print("\n")
 
+    def addCIndexForPostProcessing(self):
+        print("\nAdding CIndex for post-processing")
+        if (not self.pdInterpFieldData.empty):
+            self.pdInterpFieldData["CIndex"] = 0
+            totalLine = len(self.pdInterpFieldData)
+            for line in range(len(self.pdInterpFieldData)):
+                #print("\tProcessing data entry {}/{}".format(line, totalLine), end = "\r")
+                self.pdInterpFieldData.loc[line,"CIndex"] = self.findIndex(self.CCenterList, self.pdInterpFieldData.iloc[line]["scaledPV"])
+        else:
+            raise Exception("The data should be loaded and converteed to pandas array before adding ZGrid")
+        print("\n")
 
     def addPV(self):
         print("\nAdding PV")
@@ -310,9 +354,11 @@ class FGMtable:
         ## repair PV
         self.getPV0()
         fPV0 = interp1d(self.Z0, self.PV0, kind = 'linear', bounds_error = False, fill_value = (self.PV0[0], self.PV0[-1]))
-        for i in range(len(self.pdFieldData)):
-            localPV0 = fPV0(self.pdFieldData["Z"][i])
-            PV[i] = PV[i] - localPV0
+        localPV0 = fPV0(self.pdFieldData["Z"])
+        PV = PV - localPV0
+        # for i in range(len(self.pdFieldData)):
+        #     localPV0 = fPV0(self.pdFieldData["Z"][i])
+        #     PV[i] = PV[i] - localPV0
         self.pdFieldData["PV"] = PV
         
 
@@ -368,11 +414,54 @@ class FGMtable:
         return emptyFieldDict
        
         
-        # add FGMFields to object data member
-        self.FGMFields  = FGMFields
 
     def statistics(self):
-        pass
+        # Add Z/ C indexes
+        self.addZIndexForPostProcessing()
+        self.getScaledPVForPostProcessing()
+        self.addCIndexForPostProcessing()
+
+        # add resultCabins storing all interpolated data
+        import copy
+        resultCabinDict = {}
+        for lookupField in self.lookupFields:
+            resultCabinDict[lookupField] = []
+
+        resultCabins = [[] for ZCenterEle in self.ZCenterList]
+        for i in range(len(resultCabins)):
+            resultCabins[i] = [copy.deepcopy(resultCabinDict)  for CCenterEle in self.CCenterList]
+
+        for ele in range(len(self.pdInterpFieldData)):
+            CIndex = self.pdInterpFieldData.loc[ele,"CIndex"]
+            ZIndex = self.pdInterpFieldData.loc[ele,"ZIndex"]
+            for lookupField in self.lookupFields:
+                if ((lookupField != "PVMax") and (lookupField != "PVMin")):
+                    resultCabins[ZIndex][CIndex][lookupField].append(self.pdInterpFieldData.iloc[ele][lookupField])
+
+        self.resultCabins = resultCabins
+
+        statisticsCabinDict = {}
+        for lookupField in self.lookupFields:
+            statisticsCabinDict[lookupField] = {}
+            statisticsCabinDict[lookupField]["mean"] = np.nan
+            statisticsCabinDict[lookupField]["std"]  = np.nan
+            
+        statisticsCabins = [[] for ZCenterEle in self.ZCenterList]
+        for i in range(len(statisticsCabins)):
+            statisticsCabins[i] = [copy.deepcopy(statisticsCabinDict) for CCenterEle in self.CCenterList]
+
+        for ZI in range(len(self.ZCenterList)):
+            for CI in range(len(self.CCenterList)):
+                for lookupField in self.lookupFields:
+                    statisticsCabins[ZI][CI][lookupField]["mean"] = np.nanmean(resultCabins[ZI][CI][lookupField])
+                    if (len(resultCabins[ZI][CI][lookupField]) < 2):
+                        statisticsCabins[ZI][CI][lookupField]["std"] = np.nan
+                    else:
+                        statisticsCabins[ZI][CI][lookupField]["std"] = np.std(resultCabins[ZI][CI][lookupField])
+
+        self.statisticsCabins = statisticsCabins
+        
+            
 
 
     def writeTables(self,route = "./tableFromOF/"):
@@ -424,6 +513,13 @@ class FGMtable:
 
         writeOFScalarList(fieldDict, route)
     
+    def writeObj(self, writeRoute):
+        savepath = writeRoute + "obj.pkl"
+        with open(savepath, "wb") as file:
+            pickle.dump(self,file)
+
+
+    
     def Allrun(self,readRoute = "./", writeRoute = "./tableV2/"):
         self.info()
         self.readRawData()
@@ -439,6 +535,10 @@ class FGMtable:
         # create property properties
         properties = FGMtableProperties(writeRoute, self.ZList, self.CList, self.lookupFields)
         properties()
+
+        # write
+        self.writeObj(writeRoute)
+
         return self  
 
 
