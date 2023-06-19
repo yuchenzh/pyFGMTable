@@ -466,7 +466,6 @@ class FGMtable:
         # create the directory for storing the statistics results
         targetRoute = saveRoute + "/" + "statistics" + "/"
         if (not os.path.isdir(targetRoute)):
-            print("create targetRoute")
             os.mkdir(targetRoute)
         ZZ,CC = np.meshgrid(self.ZCenterList, self.CCenterList)
         for fieldname in self.lookupFields:
