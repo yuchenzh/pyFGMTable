@@ -11,6 +11,7 @@ from scipy.interpolate import interp1d
 from scipy.interpolate import griddata
 from tableProperties import FGMtableProperties
 import pickle
+import os
 
 class FGMtable:
     def __init__(self, dict):
@@ -415,7 +416,7 @@ class FGMtable:
        
         
 
-    def statistics(self):
+    def statistics(self,saveRoute = "./tableV2/"):
         # Add Z/ C indexes
         self.addZIndexForPostProcessing()
         self.getScaledPVForPostProcessing()
@@ -460,8 +461,67 @@ class FGMtable:
                         statisticsCabins[ZI][CI][lookupField]["std"] = np.std(resultCabins[ZI][CI][lookupField])
 
         self.statisticsCabins = statisticsCabins
+
+        ## plot mean, std, std/mean
+        # create the directory for storing the statistics results
+        targetRoute = saveRoute + "/" + "statistics" + "/"
+        if (not os.path.isdir(targetRoute)):
+            print("create targetRoute")
+            os.mkdir(targetRoute)
+        ZZ,CC = np.meshgrid(self.ZCenterList, self.CCenterList)
+        for fieldname in self.lookupFields:
+            if ((fieldname != "PVMin") and (fieldname != "PVMax")):
+                print("plotting statistics for field {}".format(fieldname))
+                meanField = self.getMeanFieldForStatistics(fieldname)
+                stdField  = self.getStdFieldForStatistics(fieldname)
+                ratioField = np.abs(stdField/meanField)
+
+                # plot
+                plt.figure(figsize = (5,9))
+                plt.subplot(311)
+                plt.pcolor(ZZ,CC,meanField, cmap = "hot")
+                plt.xlabel("Z")
+                plt.ylabel("Value")
+                plt.colorbar()
+                plt.title(fieldname + "mean")
+
+                plt.subplot(312)
+                plt.pcolor(ZZ,CC,stdField, cmap = "hot")
+                plt.xlabel("Z")
+                plt.ylabel("Value")
+                plt.colorbar()
+                plt.title(fieldname + "std")
+
+                plt.subplot(313)
+                plt.pcolor(ZZ,CC,ratioField, cmap = "hot")
+                plt.xlabel("Z")
+                plt.ylabel("Value")
+                plt.clim(0,1)
+                plt.colorbar()
+                plt.title(fieldname + "std/" + fieldname + "mean")
+
+                plt.tight_layout()
+                plt.savefig(targetRoute + fieldname + ".png")
+                plt.clf()
+                plt.close()
+                        
         
-            
+    def getMeanFieldForStatistics(self, fieldname):
+        fieldmean = np.zeros((len(self.CCenterList), len(self.ZCenterList)))
+
+        for ZI in range(len(self.ZCenterList)):
+            for CI in range(len(self.CCenterList)):
+                fieldmean[CI][ZI] = self.statisticsCabins[ZI][CI][fieldname]["mean"]
+        return fieldmean
+                
+
+    def getStdFieldForStatistics(self, fieldname):
+        fieldstd  = np.zeros((len(self.CCenterList), len(self.ZCenterList)))
+
+        for ZI in range(len(self.ZCenterList)):
+            for CI in range(len(self.CCenterList)):
+                fieldstd[CI][ZI]  = self.statisticsCabins[ZI][CI][fieldname]["std"]
+        return fieldstd
 
 
     def writeTables(self,route = "./tableFromOF/"):

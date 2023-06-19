@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 from readOFFiles import readOFScalarList
 
 class FGMtableProperties:
@@ -16,6 +17,11 @@ class FGMtableProperties:
         self.Zgrid      = Zgrid
         self.Cgrid      = Cgrid
         self.outputFieldsList = outputFieldsList
+        
+        dirName = self.tableRoute + "/" + "properties"
+
+        if (not os.path.isdir(dirName)):
+            os.mkdir(dirName)
 
     # --- overloaded operators --- #
     def __call__(self):
@@ -40,7 +46,7 @@ class FGMtableProperties:
         plt.ylabel("C")
         plt.title(fieldname)
         plt.colorbar()
-        plt.savefig(self.tableRoute + fieldname + ".png", dpi = 150)
+        plt.savefig(self.tableRoute + "/" + "properties" + "/" + fieldname + ".png", dpi = 150)
         plt.clf()
         plt.close()
     
