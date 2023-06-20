@@ -546,6 +546,11 @@ class FGMtable:
             # prepare for the field data
             fieldDict = {}
             orgData = self.FGMFields[field]
+            
+            # set the Spv of the last time step to be 0
+            # otherwise, PV might go out of bound during simulations
+            if (field == "SourcePV"):
+                orgData[-1,:] = 0    
             orgData = np.reshape(orgData.transpose(),(-1))
             fieldDict["tablename"] = writename
             fieldDict["dimension"] = np.size(orgData)
