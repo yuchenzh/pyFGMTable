@@ -12,6 +12,7 @@ from scipy.interpolate import griddata
 from tableProperties import FGMtableProperties
 import pickle
 import os
+from TimeSteps import TimeSteps
 
 class FGMtable:
     def __init__(self, dict):
@@ -20,8 +21,12 @@ class FGMtable:
         self.gridNumber = dict["gridNumber"]
         self.gridPower  = dict["gridPower"]
         self.route = dict["route"]
-        self.timeSteps  = getTimeSteps(self.route)
-        self.timeSteps.remove("0")
+        self.timeSteps  = TimeSteps(self.route, dict["TimeStepsDict"]["lowerBound"], \
+            dict["TimeStepsDict"]["upperBound"], dict["TimeStepsDict"]["stepEvery"])()
+        
+        ## if the timestep includes 0, remove it
+        if "0" in self.timeSteps:
+            self.timeSteps.remove("0")
         self.ZList      = self.constructZList()
         self.CList      = self.constructCList()
         self.fuelList   = self.constructFuelList()
@@ -148,8 +153,7 @@ class FGMtable:
 
     def readRawData(self):
         route = self.route
-        timeSteps = getTimeSteps(route)
-        timeSteps.remove("0")
+        timeSteps = self.timeSteps
         numOfFields = len(self.readFields)
 
         # try with one file to get dimensions
